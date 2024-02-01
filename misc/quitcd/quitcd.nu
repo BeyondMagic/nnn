@@ -1,19 +1,28 @@
-# The behaviour is set to cd on quit (nnn checks if NNN_TMPFILE is set)
-let cfgHome = ($env | default $"($env.HOME)/.config" XDG_CONFIG_HOME | get XDG_CONFIG_HOME)
-$env.NNN_TMPFILE = $"($cfgHome)/nnn/.lastd"
+export-env {
+	let config_home = if ($env.XDG_CONFIG_HOME | is-empty) {
+		$'($env.HOME)/.config/'
+	} else {
+		$env.XDG_CONFIG_HOME
+	}
 
-def --env n [...x] {
-  # Launch nnn. Add desired flags after `^nnn`, ex: `^nnn -eda ($x | str join)`
-  ^nnn ($x | str join)
-  let newpath = (
-    if ($env.NNN_TMPFILE | path exists) {
-      # FIXME: fails if path contains single-quote
-      let newpath = (open $env.NNN_TMPFILE | parse "cd '{nnnpath}'").0.nnnpath
-      ^rm -f $env.NNN_TMPFILE
-      echo $newpath
-    } else {
-      pwd
-    }
-  )
-  cd $newpath
+	# The behaviour is set to cd on quit (nnn checks if NNN_TMPFILE is set).
+	$env.NNN_TMPFILE = ($config_home + '/nnn/.lastd')
+}
+
+# Run nnn with dynamic changing directory to the environment.
+export def --env n [
+	...flags : string # Extra flags to launch nnn with.
+] -> nothing {
+
+	# Launch nnn. Add desired flags after `^nnn`, ex: `^nnn -eda ($x | str join)`
+	^nnn ...$flags
+
+	if ($env.NNN_TMPFILE | path exists) {
+		# Remove <cd '> from the first part of the string and the last single quote <'>.
+		let path = (open $env.NNN_TMPFILE | str substring 4..-1)
+
+		rm $env.NNN_TMPFILE
+
+		cd $path
+	}
 }
